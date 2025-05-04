@@ -1,0 +1,72 @@
+import cv2
+import numpy as np
+
+def region_of_interest(img, vertices):
+    mask = np.zeros_like(img)
+    cv2.fillPoly(mask, vertices, 255)
+    masked_image = cv2.bitwise_and(img, mask)
+    return masked_image
+
+def draw_lines(img, lines, color=[0, 255, 0], thickness=5):
+    if lines is None:
+        return
+    for line in lines:
+        for x1, y1, x2, y2 in line:
+            cv2.line(img, (x1, y1), (x2, y2), color, thickness)
+
+def process_frame(frame):
+    # Convert to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Apply Gaussian blur
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # Edge detection using Canny
+    edges = cv2.Canny(blur, 50, 150)
+
+    # Region of interest (bottom half of the frame)
+    height = frame.shape[0]
+    width = frame.shape[1]
+    roi_vertices = np.array([[
+        (int(0.1 * width), height),
+        (int(0.45 * width), int(0.6 * height)),
+        (int(0.55 * width), int(0.6 * height)),
+        (int(0.9 * width), height)
+    ]], dtype=np.int32)
+
+    cropped_edges = region_of_interest(edges, roi_vertices)
+
+    # Hough Transform to detect lines
+ lines = cv2.HoughLinesP(
+        cropped_edges,
+        rho=2,
+        theta=np.pi / 180,
+        threshold=50,
+        minLineLength=40,
+        maxLineGap=100
+    )
+
+    # Draw lines on a blank image
+    line_img = np.zeros_like(frame)
+    draw_lines(line_img, lines)
+
+    # Overlay lines on original image
+    final_img = cv2.addWeighted(frame, 0.8, line_img, 1, 0)
+    return final_img
+
+# Load video
+cap = cv2.VideoCapture(r"/Users/ishanarayan/Desktop/VIDEO-2025-05-03-12-27-56 2.mp4")  # Replace with your video file path
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    processed = process_frame(frame)
+    cv2.imshow('Lane Detection', processed)
+
+    if cv2.waitKey(25) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
